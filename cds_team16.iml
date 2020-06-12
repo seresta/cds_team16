@@ -15,5 +15,6 @@
     <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
     <orderEntry type="library" name="tornadofx-1.7.20" level="project" />
     <orderEntry type="library" name="cm" level="project" />
+    <orderEntry type="library" name="fontawesomefx-8.9" level="project" />
   </component>
 </module>
