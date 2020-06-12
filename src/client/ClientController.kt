@@ -4,11 +4,11 @@ import kr.ac.konkuk.ccslab.cm.stub.CMClientStub
 import tornadofx.*
 
 class LoginController : Controller() {
+    val clientStub: CMClientStub by param()
+
     val loginView: LoginView by inject()
     val loginFieldView: LoginFieldView by inject()
-    val mainView: MainView by inject()
-
-    val clientStub: CMClientStub by param()
+    val mainView = find<MainView>(mapOf(MainView::clientStub to this.clientStub))
 
     fun showLoginView() {
         mainView.replaceWith(loginView)
