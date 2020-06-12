@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="cm">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/cm.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/commons-math3-3.5.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib/mysql-connector-java-5.1.31-bin.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

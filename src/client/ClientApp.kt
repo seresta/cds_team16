@@ -2,4 +2,9 @@ package client
 
 import tornadofx.*
 
-class ClientApp : App(LoginView::class)
+class ClientApp : App(LoginView::class) {
+
+    init {
+        reloadStylesheetsOnFocus()
+    }
+}

@@ -1,10 +1,14 @@
 package client
 
+import kr.ac.konkuk.ccslab.cm.stub.CMClientStub
 import tornadofx.*
 
 class LoginController : Controller() {
     val loginView: LoginView by inject()
+    val loginFieldView: LoginFieldView by inject()
     val mainView: MainView by inject()
+
+    val clientStub: CMClientStub by param()
 
     fun showLoginView() {
         mainView.replaceWith(loginView)
@@ -15,14 +19,16 @@ class LoginController : Controller() {
     }
 
     fun tryLogin(id: String, pw: String) {
-        //CM Login Api
-
-        val loginResult: Int = 0
-        if (loginResult != 0) {
-            showMainView()
-        } else {
-            //loginView.errorText.text = "로그인에 실패하였습니다."
-            //loginView.errorText.fill = c("#FF0000")
+        runAsync {
+            clientStub.loginCM(id, pw)
+        } ui {
+            loginResult ->
+                if (loginResult)  {
+                    showMainView()
+                } else {
+                    loginFieldView.errorText.text = "로그인에 실패하였습니다."
+                    loginFieldView.errorText.fill = c("#FF0000")
+                }
         }
     }
 }

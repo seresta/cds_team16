@@ -6,14 +6,21 @@ import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.text.Font
 import javafx.scene.text.Text
+import kr.ac.konkuk.ccslab.cm.stub.CMClientStub
 import tornadofx.*
 import javax.swing.text.html.StyleSheet
 
+private val clientStub = CMClientStub()
+private val clientEventHandler = ClientEventHandler()
+
 class LoginView : View() {
+
     private val loginFieldView: LoginFieldView by inject()
     private val registerFieldView: RegisterFieldView by inject()
 
-
+    init {
+        clientStub.appEventHandler = clientEventHandler
+    }
 
     override val root = borderpane {
         setPrefSize(400.0, 600.0)
@@ -53,6 +60,8 @@ class LoginFieldView : View() {
 
     var errorText: Text by singleAssign()
 
+    private val loginController = find<LoginController>(mapOf(LoginController::clientStub to clientStub))
+
     override val root = hbox {
         padding = Insets(0.0, 30.0, 0.0, 30.0)
         alignment = Pos.CENTER
@@ -91,6 +100,10 @@ class LoginFieldView : View() {
                         alignment = Pos.CENTER
                         action {
                             loginModel.commit {
+                                loginController.tryLogin(
+                                        loginModel.id.value,
+                                        loginModel.password.value
+                                )
                             }
                         }
                     }
