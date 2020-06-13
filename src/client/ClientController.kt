@@ -1,6 +1,18 @@
 package client
 
-import javafx.scene.control.Label
+import javafx.animation.KeyFrame
+import javafx.animation.KeyValue
+import javafx.animation.Timeline
+import javafx.event.ActionEvent
+import javafx.event.EventHandler
+import javafx.scene.Scene
+import javafx.scene.layout.StackPane
+import javafx.scene.paint.Color
+import javafx.scene.text.Font
+import javafx.scene.text.Text
+import javafx.stage.Stage
+import javafx.stage.StageStyle
+import javafx.util.Duration
 import kr.ac.konkuk.ccslab.cm.event.*
 import kr.ac.konkuk.ccslab.cm.event.handler.CMAppEventHandler
 import kr.ac.konkuk.ccslab.cm.info.CMInfo
@@ -12,6 +24,7 @@ class ClientController : Controller(), CMAppEventHandler {
     val loginView: LoginView by inject()
     val loginFieldView: LoginFieldView by inject()
     val mainView: MainView by inject()
+    val friendView: FriendView by inject()
 
     fun showLoginView() {
         mainView.replaceWith(loginView)
@@ -31,6 +44,12 @@ class ClientController : Controller(), CMAppEventHandler {
         runAsync {
             clientStub.loginCM(id, pw)
         }
+    }
+
+    fun tryLogout() {
+        clientStub.logoutCM()
+
+        showLoginView()
     }
 
     fun tryRegister(id: String, pw: String) {
@@ -114,7 +133,11 @@ class ClientController : Controller(), CMAppEventHandler {
             CMSessionEvent.REGISTER_USER_ACK -> {
                 val result = cmSessionEvent.returnCode
                 val message = if (result == 1) "등록에 성공하였습니다" else "등록에 실패하였습니다"
-                find<PopupFragment>(mapOf(PopupFragment::message to message)).openModal()
+                runLater {
+                    //find<PopupFragment>(mapOf(PopupFragment::message to message)).openModal()
+                    Toast.makeText(primaryStage, message, 500, 0, 0)
+                }
+
             }
         }
     }
@@ -128,7 +151,8 @@ class ClientController : Controller(), CMAppEventHandler {
             CMSNSEvent.RESPONSE_FRIEND_LIST -> {
                 val friendList = cmSNSEvent.friendList
 
-                mainView.friendList.setAll(friendList)
+                friendView.friendList.setAll(friendList)
+                friendView.friendNumText.text = friendList.size.toString()
             }
         }
     }
@@ -138,8 +162,53 @@ class ClientController : Controller(), CMAppEventHandler {
     }
 }
 
-class PopupFragment : Fragment() {
-    val message: Label by param()
+object Toast {
+    fun makeText(stage: Stage, message: String, displayTime: Int = 3000, fadeInDelay: Int = 500, fadeOutDelay: Int = 500, size: Double = 15.0, opacity: Double = 5.0) {
+        val toastStage = Stage()
+        toastStage.initOwner(stage)
+        toastStage.isResizable = false
+        toastStage.initStyle(StageStyle.TRANSPARENT)
 
-    override val root = message
+        val text = Text(message)
+        text.font = Font.font("Verdana", size)
+        text.fill = Color.RED
+
+        val root = StackPane(text)
+        root.style = "-fx-background-radius: 20; -fx-background-color: rgba(0, 0, 0, 0.2); -fx-padding: 50px;"
+        root.opacity = opacity
+
+        val scene = Scene(root)
+        scene.fill = Color.TRANSPARENT
+        toastStage.scene = scene
+        toastStage.show()
+
+        val fadeInTimeline = Timeline()
+        val fadeInKey1 =
+                KeyFrame(Duration.millis(fadeInDelay.toDouble()), KeyValue(toastStage.scene.root.opacityProperty(), 1))
+        fadeInTimeline.keyFrames.add(fadeInKey1)
+        fadeInTimeline.setOnFinished {
+            Thread {
+                try {
+                    Thread.sleep(displayTime.toLong())
+                } catch (e: InterruptedException) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace()
+                }
+
+                val fadeOutTimeline = Timeline()
+                val fadeOutKey1 =
+                        KeyFrame(
+                                Duration.millis(fadeOutDelay.toDouble()),
+                                KeyValue(toastStage.scene.root.opacityProperty(), 0)
+                        )
+                fadeOutTimeline.keyFrames.add(fadeOutKey1)
+                fadeOutTimeline.setOnFinished { toastStage.close() }
+                runLater {
+                    fadeOutTimeline.play()
+                }
+
+            }.start()
+        }
+        fadeInTimeline.play()
+    }
 }

@@ -117,6 +117,7 @@ class RegisterFieldView : View() {
     private val registerModel = object : ViewModel() {
         val id = bind { SimpleStringProperty() }
         val password = bind { SimpleStringProperty() }
+        val confirmPW = bind { SimpleStringProperty() }
     }
 
     var repasswd: PasswordField by singleAssign()
@@ -148,8 +149,14 @@ class RegisterFieldView : View() {
                             if ((it?.length ?: 0) > 10) error("비밀번호 길이는 10자 이하여야 합니다") else null
                         }
                     }
-                    repasswd = passwordfield {
+                }
+                field {
+                    repasswd = passwordfield(registerModel.confirmPW) {
+                        required()
                         promptText = "비밀번호 재입력"
+                        validator {
+                            if (it != registerModel.password.value) error("비밀번호를 다시 확인해 주세요") else null
+                        }
                     }
                 }
                 field {
