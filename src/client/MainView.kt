@@ -75,15 +75,36 @@ class MainView : View() {
 
 class FriendView : View() {
     val friendList: ObservableList<String> by param()
+    val clientController: ClientController by inject()
 
     override val root = borderpane {
         top = vbox {
             label("친구")
-            textfield { 
+            textfield {
                 promptText = "이름 검색"
             }
         }
-        center = listview(friendList) {  }
+        center = listview(friendList) {
+            contextmenu {
+                item("일반 채팅 하기").action {
+                    selectedItem?.apply {
+                        val roomId = clientController.getRoomId(selectedItem!!, false)
+                        val filtered = chatRoomMap.map { it.key }.filter { it == roomId }
+                        if (filtered.isEmpty()) {
+                            clientController.createRoom(selectedItem!!, false)
+                        }
+
+                        clientController.showChatRoomView(roomId)
+                    }
+
+                }
+                item("비밀 채팅 하기").action {
+                    selectedItem?.apply {
+                        clientController.getRoomId(selectedItem!!, true)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -97,7 +118,7 @@ class ChatView : View() {
                 promptText = "채팅방 검색"
             }
         }
-        center = listview(chatList) {  }
+        center = listview(chatList) { }
     }
 }
 

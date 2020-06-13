@@ -4,8 +4,9 @@ import javafx.scene.control.Label
 import kr.ac.konkuk.ccslab.cm.event.*
 import kr.ac.konkuk.ccslab.cm.event.handler.CMAppEventHandler
 import kr.ac.konkuk.ccslab.cm.info.CMInfo
-import kr.ac.konkuk.ccslab.cm.stub.CMClientStub
+import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo
 import tornadofx.*
+
 
 class ClientController : Controller(), CMAppEventHandler {
     val loginView: LoginView by inject()
@@ -17,7 +18,13 @@ class ClientController : Controller(), CMAppEventHandler {
     }
 
     fun showMainView() {
+        getFriendList()
         loginView.replaceWith(mainView)
+    }
+
+    fun showChatRoomView(roomId: Int) {
+        val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomId))
+        mainView.replaceWith(chatRoomView)
     }
 
     fun tryLogin(id: String, pw: String) {
@@ -33,6 +40,49 @@ class ClientController : Controller(), CMAppEventHandler {
     }
 
     fun getFriendList() = clientStub.requestFriendsList()
+
+    fun tryNormarChatStart() {
+
+    }
+
+    fun trySecretChatStart() {
+
+    }
+
+    fun getRoomId(target: String, isSecret: Boolean): Int {
+        return 0
+    }
+
+    fun createRoom(target: String, isSecret: Boolean) {
+        val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
+        val myself = interInfo.myself
+
+        val strSend = "1:$target:${if (isSecret) 1 else 0}"
+
+        val due = CMDummyEvent()
+        due.sender = myself.name
+        due.dummyInfo = strSend
+
+        val replyEvent = clientStub.sendrecv(due, "SERVER", CMInfo.CM_DUMMY_EVENT, 222, 1000) as CMDummyEvent?
+        if (replyEvent == null) System.err.println("The reply event is null!") else {
+            val dueInfo = replyEvent.dummyInfo.split(":".toRegex()).toTypedArray()
+            if (dueInfo[0] == "1") {
+                val roomId = dueInfo[1].toInt()
+                chatRoomMap[roomId] = arrayListOf<String>()
+            } else if (dueInfo[0] == "0") println("This is not valid friend name!!")
+
+
+        }
+    }
+
+    fun sendChat(roomId: Int, chat: String) {
+        val userEvent = CMUserEvent()
+
+        userEvent.setEventField(CMInfo.CM_INT, "room_id", roomId.toString())
+        userEvent.setEventField(CMInfo.CM_STR, "chat", chat)
+
+        clientStub.send(userEvent, "SERVER")
+    }
 
     override fun processEvent(cmEvent: CMEvent) {
         when (cmEvent.type) {
@@ -78,7 +128,7 @@ class ClientController : Controller(), CMAppEventHandler {
             CMSNSEvent.RESPONSE_FRIEND_LIST -> {
                 val friendList = cmSNSEvent.friendList
 
-                mainView.friendList.addAll(friendList)
+                mainView.friendList.setAll(friendList)
             }
         }
     }
