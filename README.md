@@ -6,7 +6,13 @@
 김설매 \
 송태인
 
+**Dependencies** \
+CM \
+Kotin \
+ToarnadoFX \
+FontAwesomeIcon \
+
 **앱** \
-client -> jar 파일 실행
+client -> jar 파일 실행 \
 server -> ServerApp.java 컴파일후 실행
 
