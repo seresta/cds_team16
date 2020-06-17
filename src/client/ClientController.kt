@@ -3,8 +3,6 @@ package client
 import javafx.animation.KeyFrame
 import javafx.animation.KeyValue
 import javafx.animation.Timeline
-import javafx.event.ActionEvent
-import javafx.event.EventHandler
 import javafx.scene.Scene
 import javafx.scene.layout.StackPane
 import javafx.scene.paint.Color
@@ -18,6 +16,8 @@ import kr.ac.konkuk.ccslab.cm.event.handler.CMAppEventHandler
 import kr.ac.konkuk.ccslab.cm.info.CMInfo
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo
 import tornadofx.*
+import java.util.*
+import kotlin.concurrent.thread
 
 
 class ClientController : Controller(), CMAppEventHandler {
@@ -26,12 +26,17 @@ class ClientController : Controller(), CMAppEventHandler {
     val mainView: MainView by inject()
     val friendView: FriendView by inject()
 
-    fun showLoginView() {
-        mainView.replaceWith(loginView)
+    fun showLoginView(view: View) {
+        view.replaceWith(loginView)
     }
 
     fun showMainView() {
-        getFriendList()
+        thread {
+            getFriendList()
+        }
+        thread {
+            getRoomList()
+        }
         loginView.replaceWith(mainView)
     }
 
@@ -40,16 +45,44 @@ class ClientController : Controller(), CMAppEventHandler {
         mainView.replaceWith(chatRoomView)
     }
 
+    fun exitChatRoomView(roomId: Int) {
+        val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomId))
+        chatRoomView.replaceWith(mainView)
+    }
+
+    fun exitRoom(roomID: Int) {
+        thread {
+            val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
+            val myself = interInfo.myself
+            val strSend = "exitRoom:$roomID"
+            println("Exit the Chatting Room")
+            var due = CMDummyEvent()
+            due.sender = myself.name
+            due.dummyInfo = strSend
+            val replyEvent = clientStub.sendrecv(due, "SERVER", CMInfo.CM_DUMMY_EVENT, 111, 1000) as CMDummyEvent?
+            if (replyEvent == null) {
+                System.err.println("The reply event is null!")
+            } else {
+                println("방 나가기 정상 처리")
+            }
+        }
+        runLater {
+            val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomID))
+            mainView.chatList.remove(mainView.chatList.find { it.contains(roomID.toString()) })
+            chatRoomView.replaceWith(mainView)
+        }
+    }
+
     fun tryLogin(id: String, pw: String) {
         runAsync {
             clientStub.loginCM(id, pw)
         }
     }
 
-    fun tryLogout() {
+    fun tryLogout(view: View) {
         clientStub.logoutCM()
 
-        showLoginView()
+        showLoginView(view)
     }
 
     fun tryRegister(id: String, pw: String) {
@@ -58,49 +91,128 @@ class ClientController : Controller(), CMAppEventHandler {
         }
     }
 
+    fun tryAddFriend(name: String) {
+        clientStub.addNewFriend(name)
+        getFriendList()
+    }
+
+    fun tryDeleteFriend(name: String) {
+        clientStub.removeFriend(name)
+        getFriendList()
+    }
+
     fun getFriendList() = clientStub.requestFriendsList()
 
-    fun tryNormarChatStart() {
+    fun sendChat(roomId: Int, msg: String) {
+        val myName = clientStub.cmInfo.interactionInfo.myself.name
 
+        val intEvent = CMInterestEvent()
+        intEvent.sender = myName
+        intEvent.id = CMInterestEvent.USER_TALK
+        intEvent.talk = "$roomId:$msg"
+        clientStub.send(intEvent, "SERVER")
+
+        println("채팅방 roomid : $roomId")
     }
 
-    fun trySecretChatStart() {
-
-    }
-
-    fun getRoomId(target: String, isSecret: Boolean): Int {
-        return 0
-    }
-
-    fun createRoom(target: String, isSecret: Boolean) {
+    fun getRoomList() {
         val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
         val myself = interInfo.myself
+        val strSend = "requestRoomList:"
 
-        val strSend = "1:$target:${if (isSecret) 1 else 0}"
+        println("====== Request Room List")
 
         val due = CMDummyEvent()
         due.sender = myself.name
         due.dummyInfo = strSend
 
+        val replyEvent = clientStub.sendrecv(due, "SERVER", CMInfo.CM_DUMMY_EVENT, 444, 10000) as CMDummyEvent?
+
+        if (replyEvent == null)
+            System.err.println("The reply event is null!")
+        else {
+            val chatView = find<ChatView>()
+
+            val dueInfo = replyEvent.dummyInfo.split(":".toRegex()).toTypedArray()
+            if (dueInfo[0] == "room") {
+                val rooms = dueInfo[1]
+                val roomList = rooms.split(";".toRegex()).toTypedArray()
+                roomList.forEach {
+                    println(it)
+                    val roomInfo = it.split(",".toRegex()).toTypedArray()
+                    val roomId = roomInfo[0]
+                    if (roomId.isNotEmpty()) {
+                        chatRoomMap[roomId.toInt()] = arrayListOf<String>()
+                        requestMsgList(roomId.toInt())
+
+                        runLater {
+                            chatView.chatList.clear()
+                            chatView.chatList.add("${if (roomInfo[2] == "false") "[일반]" else "[비밀]"}${roomInfo[1]}:${roomInfo[0]}")
+                        }
+                    }
+                }
+            } else if (dueInfo[0] == "noRoom") println("There is no valid room!!")
+        }
+    }
+
+    fun getRoomId(target: String, isSecret: Boolean): Int {
+        val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
+        val myself = interInfo.myself
+        val strSend = "getRoomID:$target:$isSecret"
+        val roomID: Int
+
+        println("Getting RoomID")
+
+        val due = CMDummyEvent()
+        due.sender = myself.name
+        due.dummyInfo = strSend
+        val replyEvent = clientStub.sendrecv(due, "SERVER", CMInfo.CM_DUMMY_EVENT, 555, 1000) as CMDummyEvent?
+
+        if (replyEvent == null) {
+            System.err.println("The reply event is null!")
+            return -1
+        }
+        else {
+            val dueInfo = replyEvent.dummyInfo.split(":".toRegex()).toTypedArray()
+            if (dueInfo[0] == "1") {
+                println("Start Chatting with$target")
+                roomID = dueInfo[1].toInt()
+                println("received roomid from getroomid : $roomID")
+                return roomID
+            } else if (dueInfo[0] == "0") {
+                println("There is no valid room!!")
+                return 99
+            }
+        }
+
+        return 100
+    }
+
+    fun requestMsgList(roomID: Int) {
+        val rID = roomID.toString()
+        clientStub.requestSNSContent(rID, 0)
+    }
+
+    fun createRoom(target: String, isSecret: Boolean) {
+        val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
+        val myself = interInfo.myself
+        val strSend = "createRoom:$target:$isSecret"
+        val roomID: Int
+        println("====== create Chatting room")
+        println("Chatting Request To :$target")
+        var due = CMDummyEvent()
+        due.sender = myself.name
+        due.dummyInfo = strSend
         val replyEvent = clientStub.sendrecv(due, "SERVER", CMInfo.CM_DUMMY_EVENT, 222, 1000) as CMDummyEvent?
         if (replyEvent == null) System.err.println("The reply event is null!") else {
             val dueInfo = replyEvent.dummyInfo.split(":".toRegex()).toTypedArray()
             if (dueInfo[0] == "1") {
-                val roomId = dueInfo[1].toInt()
-                chatRoomMap[roomId] = arrayListOf<String>()
+                println("Start Chatting with$target")
+                roomID = dueInfo[1].toInt()
+
+                chatRoomMap[roomID] = arrayListOf()
             } else if (dueInfo[0] == "0") println("This is not valid friend name!!")
-
-
         }
-    }
-
-    fun sendChat(roomId: Int, chat: String) {
-        val userEvent = CMUserEvent()
-
-        userEvent.setEventField(CMInfo.CM_INT, "room_id", roomId.toString())
-        userEvent.setEventField(CMInfo.CM_STR, "chat", chat)
-
-        clientStub.send(userEvent, "SERVER")
     }
 
     override fun processEvent(cmEvent: CMEvent) {
@@ -122,8 +234,7 @@ class ClientController : Controller(), CMAppEventHandler {
                         loginFieldView.errorText.fill = c("#FF0000")
                     }
 
-                }
-                else if (cmSessionEvent.isValidUser == 1) {
+                } else if (cmSessionEvent.isValidUser == 1) {
                     runLater {
                         showMainView()
                     }
@@ -151,14 +262,50 @@ class ClientController : Controller(), CMAppEventHandler {
             CMSNSEvent.RESPONSE_FRIEND_LIST -> {
                 val friendList = cmSNSEvent.friendList
 
-                friendView.friendList.setAll(friendList)
-                friendView.friendNumText.text = friendList.size.toString()
+                runLater {
+                    friendView.friendList.setAll(friendList)
+                    friendView.friendNumText.text = friendList.size.toString()
+                }
+            }
+            CMSNSEvent.CONTENT_DOWNLOAD -> {
+                val seInfo = cmSNSEvent.message.split(":")
+                val roomID = seInfo[0].toInt()
+                chatRoomMap[roomID] = arrayListOf(seInfo[1] + ":" + seInfo[2])
+                val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomID))
+                chatRoomView.chatList.add(seInfo[1] + ":" + seInfo[2])
+            }
+            CMSNSEvent.CONTENT_DOWNLOAD_END -> {
+                println("download end")
             }
         }
     }
 
     private fun processInterestEvent(cmInterestEvent: CMInterestEvent) {
+        val ie = cmInterestEvent
+        val ieInfo = ie.talk.split(":".toRegex()).toTypedArray()
+        val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
+        val myself = interInfo.myself
+        println("Process InterestEvent")
+        println(ie.talk)
+        var roomID: Int
+        when (ie.id) {
+            CMInterestEvent.USER_TALK -> {
+                roomID = ieInfo[0].toInt()
+                val sender = ieInfo[1]
+                val message = ieInfo[2]
 
+
+                val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomID))
+                runLater {
+                    chatRoomView.chatList.add("$sender:$message")
+                }
+            }
+            CMInterestEvent.USER_LEAVE -> {
+                roomID = ieInfo[0].toInt()
+                println("$roomID : None User")
+            }
+            else -> return
+        }
     }
 }
 

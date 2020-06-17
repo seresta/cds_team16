@@ -1,8 +1,12 @@
 package client
 
+import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon
+import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView
+import javafx.application.Platform
 import javafx.beans.property.SimpleStringProperty
 import javafx.geometry.Pos
 import tornadofx.*
+import kotlin.system.exitProcess
 
 class ChatRoomView : View() {
     private val chatModel = object : ViewModel() {
@@ -16,8 +20,24 @@ class ChatRoomView : View() {
 
     override val root = borderpane {
         setPrefSize(400.0, 600.0)
-        top = hbox {
-
+        top = menubar {
+            menu("앱") {
+                item("로그아웃", graphic = FontAwesomeIconView(FontAwesomeIcon.ARROW_LEFT)).action {
+                    clientController.tryLogout(this@ChatRoomView)
+                }
+                item("종료", graphic = FontAwesomeIconView(FontAwesomeIcon.POWER_OFF)).action {
+                    Platform.exit()
+                    exitProcess(0)
+                }
+            }
+            menu("채팅방") {
+                item("뒤로 가기", graphic = FontAwesomeIconView(FontAwesomeIcon.BACKWARD)).action {
+                    clientController.exitChatRoomView(roomId)
+                }
+                item("방 나가기", graphic = FontAwesomeIconView(FontAwesomeIcon.BACKWARD)).action {
+                    clientController.exitRoom(roomId)
+                }
+            }
         }
         center = listview(chatList) {
 
@@ -34,7 +54,7 @@ class ChatRoomView : View() {
                 shortcut("Enter")
                 action {
                     chatModel.commit {
-                        chatList.add(chatModel.chat.value)
+                        //chatList.add(chatModel.chat.value)
                         clientController.sendChat(roomId, chatModel.chat.value)
                     }
                 }

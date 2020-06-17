@@ -29,7 +29,9 @@ class MainView : View() {
 
     //val friendView = find<FriendView>(mapOf(FriendView::friendList to friendList))
     val friendView: FriendView by inject()
-    val chatView = find<ChatView>(mapOf(ChatView::chatList to chatList))
+
+    //val chatView = find<ChatView>(mapOf(ChatView::chatList to arrayListOf<String>("").asObservable() ))
+    val chatView = find<ChatView>()
     val infoView: InfoView by inject()
 
     override val root = borderpane {
@@ -38,7 +40,7 @@ class MainView : View() {
         top = menubar {
             menu("앱") {
                 item("로그아웃", graphic = FontAwesomeIconView(FontAwesomeIcon.ARROW_LEFT)).action {
-                    clientController.tryLogout()
+                    clientController.tryLogout(this@MainView)
                 }
                 item("종료", graphic = FontAwesomeIconView(FontAwesomeIcon.POWER_OFF)).action {
                     Platform.exit()
@@ -74,6 +76,7 @@ class MainView : View() {
                 prefWidth = 133.3
 
                 whenSelected {
+                    clientController.getRoomList()
                     center.replaceWith(chatView.root)
                 }
             }
@@ -96,6 +99,10 @@ class FriendView : View() {
 
     var friendNumText: Text by singleAssign()
 
+    private val friendAddModel = object : ViewModel() {
+        val friendName = bind { SimpleStringProperty() }
+    }
+
     override val root = borderpane {
         top = borderpane {
             padding = Insets(15.0, 30.0, 15.0, 30.0)
@@ -105,9 +112,15 @@ class FriendView : View() {
                     fontWeight = FontWeight.BOLD
                 }
             }
-            right = button(graphic = FontAwesomeIconView(FontAwesomeIcon.PLUS))
-            bottom = textfield {
-                promptText = "이름 검색"
+            right = button(graphic = FontAwesomeIconView(FontAwesomeIcon.PLUS)) {
+                action {
+                    friendAddModel.commit {
+                        clientController.tryAddFriend(friendAddModel.friendName.value)
+                    }
+                }
+            }
+            bottom = textfield(friendAddModel.friendName) {
+                promptText = "친구 이름 입력"
             }
         }
         center = vbox {
@@ -126,12 +139,18 @@ class FriendView : View() {
                     }
                 }
                 contextmenu {
+                    item("친구 삭제").action {
+                        selectedItem?.apply {
+                            clientStub.removeFriend(this)
+                        }
+                    }
                     item("일반 채팅 하기").action {
                         selectedItem?.apply {
-                            val roomId = clientController.getRoomId(selectedItem!!, false)
+                            var roomId = clientController.getRoomId(selectedItem!!, false)
                             val filtered = chatRoomMap.map { it.key }.filter { it == roomId }
                             if (filtered.isEmpty()) {
                                 clientController.createRoom(selectedItem!!, false)
+                                roomId = clientController.getRoomId(selectedItem!!, false)
                             }
 
                             clientController.showChatRoomView(roomId)
@@ -156,7 +175,8 @@ class FriendView : View() {
 }
 
 class ChatView : View() {
-    val chatList: ObservableList<String> by param()
+    val chatList = observableListOf<String>()
+    val clientController: ClientController by inject()
 
     override val root = borderpane {
         top = borderpane {
@@ -185,7 +205,7 @@ class ChatView : View() {
             contextmenu {
                 item("채팅방 입장").action {
                     selectedItem?.apply {
-
+                        clientController.showChatRoomView(this.substringAfter(':').toInt())
                     }
                 }
             }
@@ -194,5 +214,9 @@ class ChatView : View() {
 }
 
 class InfoView : View() {
-    override val root = label("건국대학교 컴퓨터공학과 조승현")
+    override val root = vbox {
+        alignment = Pos.CENTER
+        text("ⓒ 2020 건국대학교 컴퓨터공학과 조승현")
+        text("협동분산시스템 프로젝트 팀16")
+    }
 }

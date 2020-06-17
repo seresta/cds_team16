@@ -16,14 +16,14 @@ import kr.ac.konkuk.ccslab.cm.stub.CMServerStub;
 
 public class ServerEventHandler implements CMAppEventHandler {
     private CMServerStub m_serverStub;
-    private Map<Integer, String> room;
+    private Map<Integer, String[]> roomList;
 
     private int roomNum;
 
     public ServerEventHandler(CMServerStub serverStub) {
         m_serverStub = serverStub;
         roomNum = 0;
-        room = new HashMap<Integer, String>();
+        roomList = new HashMap<Integer, String[]>();
     }
 
     @Override
@@ -73,207 +73,199 @@ public class ServerEventHandler implements CMAppEventHandler {
         }
     }
 
-        //ä�ù� ����, ä�ù� ����
-        private void processDummyEvent (CMEvent cme){
-            CMDummyEvent due = (CMDummyEvent) cme;
-            String[] dueInfo = due.getDummyInfo().split(":");
-            String sender = due.getSender();
-            boolean isExist = true;
+    //ä�ù� ����, ä�ù� ����
+    private void processDummyEvent(CMEvent cme) {
+        CMDummyEvent due = (CMDummyEvent) cme;
+        String[] dueInfo = due.getDummyInfo().split(":");
+        String msgInfo = dueInfo[0];
+        String sender = due.getSender();
 
-            // create Room
-            if (dueInfo[0].equals("1")) {
-                //ģ�� �˻�
-                String target = dueInfo[1];
-                String isSecret = dueInfo[2];
-                ArrayList<String> friendsList = CMDBManager.queryGetFriendsList(sender, m_serverStub.getCMInfo());
-                for (String friend : friendsList)
-                    if (friend.equals(target))
-                        isExist = true;
 
-                if (isExist) {
-                    //this.roomList.put(this.roomNum, sender+","+target);
-                    System.out.println("roomID(" + this.roomNum + ")" + sender + "," + target + "," + isSecret);
-                    //this.roomState.put(this.roomNum, "10"+isSecret);
+        boolean isExist = true;
 
-                    this.room.put(this.roomNum, sender + "," + target + "/" + "10" + isSecret);
+        // create Room
+        if (msgInfo.equals("createRoom")) {
 
-                    due.setDummyInfo("1:" + this.roomNum);
-                    this.roomNum++;
-                } else {
-                    due.setDummyInfo("0:");
-                }
-                due.setID(222);
-                m_serverStub.send(due, due.getSender());
+            String target = dueInfo[1];
+            boolean isSecret = Boolean.parseBoolean(dueInfo[2]);
+
+
+            //this.roomList.put(this.roomNum, sender + target + isSecret);
+            System.out.println("roomID(" + this.roomNum + ")" + sender + "," + target + "," + isSecret);
+
+            String[] putInfo = {sender, target, Boolean.toString(isSecret)};
+            this.roomList.put(this.roomNum, putInfo);
+            due.setDummyInfo("1:" + this.roomNum);
+
+            if (!isSecret) {
+                CMDummyEvent due2 = new CMDummyEvent();
+                due2.setSender("SERVER");
+                due2.setDummyInfo("enterRoom" + ":" + this.roomNum);
+                m_serverStub.send(due2, sender);
             }
+            this.roomNum++;
+            due.setID(222);
+            m_serverStub.send(due, sender);
+        }
 
-            // exit Room
-            else if (dueInfo[0].equals("2")) {
-                int roomID = Integer.parseInt(dueInfo[1]);
+        // exit Room
+        else if (msgInfo.equals("exitRoom")) {
+            int roomID = Integer.parseInt(dueInfo[1]);
 
-                //���ä��, ������ ������ ���� ���� ���
-                //if(this.roomList.get(roomID)==null)
-                if (this.room.get(roomID) == null) {
-                    due.setDummyInfo("1:exit secret room");
-                    due.setID(111);
+            //비밀채팅, 상대방이 나가서 방이 없는 경우
+            if (this.roomList.get(roomID) == null)
+                due.setDummyInfo("exitSecret");
+
+                //일반채팅, 비밀채팅 상대방이 있는경우
+            else {
+
+                String[] roomInfo = this.roomList.get(roomID);
+                String[] chatName = {roomInfo[0], roomInfo[1]};
+                boolean isSecret = Boolean.parseBoolean(roomInfo[2]);
+
+                String target;
+                if (chatName[0].equals(sender))
+                    target = chatName[1];
+                else
+                    target = chatName[0];
+
+
+                //비밀채팅방
+                if (isSecret) {
+                    this.roomList.remove(roomID);
+                    due.setDummyInfo("removeSecret");
+
+                    m_serverStub.send(due, target);
                 }
-                //�Ϲ�ä��, ���ä�� ������ �ִ°��
+                //일반채팅방
                 else {
-                    //String[] chatName = this.roomList.get(roomID).split(",");
-                    //String rState =this.roomState.get(roomID);
-                    String[] roomSplit = this.room.get(roomID).split("/");
-                    String[] chatName = roomSplit[0].split(",");
-                    String rState = roomSplit[1];
-
-                    String target;
-                    String targetState;
-                    if (chatName[0].equals(sender)) {
-                        target = chatName[1];
-                        targetState = rState.substring(1, 2);
-                    } else {
-                        target = chatName[0];
-                        targetState = rState.substring(0, 1);
-                    }
-                    //���ä�ù�
-                    if (rState.substring(2).equals("1")) {
-                        //this.roomList.remove(roomID);
-                        //this.roomState.remove(roomID);
-                        this.room.remove(roomID);
-                        due.setDummyInfo("1:remove secret room");
-                        //ä�� ������� ���� ���� ����
-                        m_serverStub.send(due, target);
-
-                        due.setID(111);
-                    }
-                    //�Ϲ�ä�ù�
-                    else {
-                        String nState;
-                        if (chatName[0].equals(sender)) {
-                            nState = "0" + rState.substring(1);
-                        } else {
-                            nState = rState.substring(0, 1) + "0" + rState.substring(2);
-                        }
-                        //this.roomState.put(roomID, nState);
-                        this.room.put(roomID, chatName[0] + "," + chatName[1] + "/" + nState);
-
-                        due.setDummyInfo("1:exit room");
-                        if (targetState.equals("1"))
-                            m_serverStub.send(due, target);
-                        due.setID(111);
-                    }
+                    due.setDummyInfo("exitRoom");
                 }
-                m_serverStub.send(due, sender);
             }
-
-            //request Room List
-            else if (dueInfo[0].equals("3")) {
-                String existRoom = null;
-                for (int i = 0; i < this.roomNum; i++) {
-                    //String Names = this.roomList.get(i);
-
-                    String[] roomSplit = this.room.get(i).split("/");
-                    String Names = roomSplit[0];
-
-                    if (Names == null) ;
-                    else {
-                        String[] clientName = Names.split(",");
-                        if (clientName[0].equals(sender))
-                            existRoom = existRoom + i + "," + clientName[1] + ";";
-                        else if (clientName[1].equals(sender))
-                            existRoom = existRoom + i + "," + clientName[0] + ";";
-                    }
-                }
-                if (existRoom == null) {
-                    due.setID(444);
-                    due.setDummyInfo("0:");
-                } else {
-                    due.setID(444);
-                    due.setDummyInfo("1:" + existRoom);
-                }
-                m_serverStub.send(due, sender);
-            }
-
-            //enter Room  -- normal room : ���� ��ȭ���� �����ؾ��ϴ� ���� �ʿ�
-            else if (dueInfo[0].equals("4")) {
-                int rNum = Integer.parseInt(dueInfo[1]);
-                //String clients = this.roomList.get(rNum);
-
-                String[] roomSplit = this.room.get(rNum).split("/");
-                String clients = roomSplit[0];
-
-                if (clients == null) {
-                    due.setDummyInfo("0:");
-                } else {
-                    String[] clientNames = clients.split(",");
-                    //String rState = this.roomState.get(rNum);
-                    String rState = roomSplit[1];
-
-                    String nState;
-                    if (clientNames[0].equals(due.getSender())) {
-                        nState = "1" + rState.substring(1);
-                        //this.roomState.put(rNum, nState);
-                        this.room.put(rNum, clientNames[0] + "," + clientNames[1] + "/" + nState);
-                        //test
-                        System.out.println("roomId(" + rNum + ")" + "state:" + nState);
-                        due.setDummyInfo("1:");
-                    } else if (clientNames[1].equals(due.getSender())) {
-                        nState = rState.substring(0, 1) + "1" + rState.substring(2);
-                        //test
-                        System.out.println("roomId(" + rNum + ")" + "state:" + nState);
-                        //this.roomState.put(rNum, nState);
-                        this.room.put(rNum, clientNames[0] + "," + clientNames[1] + "/" + nState);
-                        due.setDummyInfo("1:");
-                    } else
-                        due.setDummyInfo("0:");
-                }
-                due.setID(333);
-                m_serverStub.send(due, due.getSender());
-            }
+            due.setID(111);
+            m_serverStub.send(due, sender);
         }
 
-        //ä�ó��� ������� �ʿ�
-        private void processInterestEvent (CMEvent cme){
-            CMInterestEvent ie = (CMInterestEvent) cme;
-            switch (ie.getID()) {
-                case CMInterestEvent.USER_TALK:
-                    String[] ieInfo = ie.getTalk().split(":");
-                    String sender = ie.getSender();
-                    int roomID = Integer.parseInt(ieInfo[0]);
+        //request Room List
+        else if (msgInfo.equals("requestRoomList")) {
+            String existRoom = "";
+            for (int i = 0; i < this.roomNum; i++) {
 
-                    String[] roomSplit = this.room.get(roomID).split("/");
-                    String[] clientNames = roomSplit[0].split(",");
-                    String roomState = roomSplit[1];
+                String[] roomInfo = this.roomList.get(i);
 
-                    //String roomState = this.roomState.get(roomID);
+                if (roomInfo == null) ;
+                else {
 
-                    //���ä�ù� ������
-                    if (roomState == null) {
-                        ie.setTalk(null);
-                        ie.setID(CMInterestEvent.USER_LEAVE);
-                        m_serverStub.send(ie, sender);
-                    } else {
-                        //String[] clientNames = this.roomList.get(roomID).split(",");
-                        ie.setTalk(sender + ":" + ieInfo[1]);
-
-                        if (clientNames[0].equals(sender)) {
-                            if (roomState.substring(1, 2).equals("1")) {
-                                this.m_serverStub.send(ie, clientNames[1]);
-                            }
-                        } else if (clientNames[1].equals(sender)) {
-                            if (roomState.substring(0, 1).equals("1")) {
-                                this.m_serverStub.send(ie, clientNames[0]);
-                            }
-                        }
-                        //ä�ó��� ����
-                        if (roomState.substring(2) == "1") ;
-                        else {
-                            CMDBManager.queryInsertSNSContent(ieInfo[0], ie.getTalk(), 0, 0, 0, m_serverStub.getCMInfo());
-                        }
-                    }
-
-                default:
-                    return;
+                    if (roomInfo[0].equals(sender))
+                        existRoom = existRoom + i + "," + roomInfo[1] + "," + roomInfo[2] + ";";
+                    else if (roomInfo[1].equals(sender))
+                        existRoom = existRoom + i + "," + roomInfo[0] + "," + roomInfo[2] + ";";
+                }
             }
+            if (existRoom.equals("")) {
+                due.setID(444);
+                due.setDummyInfo("noRoom:");
+            } else {
+                due.setID(444);
+                due.setDummyInfo("room:" + existRoom);
+            }
+            m_serverStub.send(due, sender);
         }
 
+        //enter Room
+        else if (msgInfo.equals("enterRoom")) {
+            int roomID = Integer.parseInt(dueInfo[1]);
 
+            String[] roomInfo = this.roomList.get(roomID);
+
+            if (roomInfo == null) {
+                due.setDummyInfo("noRoom:");
+            } else {
+                String[] clientNames = {roomInfo[0], roomInfo[1]};
+                boolean isSecret = Boolean.parseBoolean(roomInfo[2]);
+
+                if (clientNames[0].equals(due.getSender())) {
+                    due.setDummyInfo("room:" + isSecret);
+                } else if (clientNames[1].equals(due.getSender())) {
+                    due.setDummyInfo("room:" + isSecret);
+                } else
+                    due.setDummyInfo("noRoom:");
+
+                if (!isSecret) {
+                    CMDummyEvent due2 = new CMDummyEvent();
+                    due2.setSender("SERVER");
+                    due2.setDummyInfo("enterRoom" + ":" + roomID);
+                    m_serverStub.send(due2, sender);
+                }
+            }
+            due.setID(333);
+            m_serverStub.send(due, sender);
+        } else if (msgInfo.equals("getRoomID")) {
+            String target = dueInfo[1];
+            String isSecret = dueInfo[2];
+            boolean Exist = false;
+            int findRoomID;
+            for (int i = 0; i < this.roomNum; i++) {
+
+                String[] roomInfo = this.roomList.get(i);
+                if (roomInfo == null) ;
+                else {
+                    if (isSecret.equals(roomInfo[2]) && (target.equals(roomInfo[0]) || target.equals(roomInfo[1]))) {
+                        Exist = true;
+                        findRoomID = i;
+                        due.setDummyInfo("1:" + findRoomID);
+                        break;
+                    }
+                }
+            }
+            if (!Exist)
+                due.setDummyInfo("0:");
+
+            due.setID(555);
+            m_serverStub.send(due, sender);
+        }
     }
+
+    //ä�ó��� ������� �ʿ�
+    private void processInterestEvent(CMEvent cme) {
+        CMInterestEvent ie = (CMInterestEvent) cme;
+        switch (ie.getID()) {
+            case CMInterestEvent.USER_TALK:
+                String[] ieInfo = ie.getTalk().split(":");
+                String sender = ie.getSender();
+                int roomID = Integer.parseInt(ieInfo[0]);
+                String message = ieInfo[1];
+
+                System.out.println("interest event room id : " + roomID);
+                String[] roomInfo = this.roomList.get(roomID);
+
+                //비밀방 없어지고 혼자남으면
+                if (roomInfo == null) {
+                    ie.setID(CMInterestEvent.USER_LEAVE);
+                    m_serverStub.send(ie, sender);
+                } else {
+                    String[] clientNames = {roomInfo[0], roomInfo[1]};
+                    boolean isSecret = Boolean.parseBoolean(roomInfo[2]);
+                    ie.setTalk(roomID + ":" + sender + ":" + message);
+
+                    if (clientNames[0].equals(sender)) {
+                        this.m_serverStub.send(ie, clientNames[1]);
+                    } else {
+                        this.m_serverStub.send(ie, clientNames[0]);
+                    }
+                    this.m_serverStub.send(ie, sender);
+
+                    if (isSecret) ;
+                    else {
+                        // roomID(String) , sender:msg
+                        CMDBManager.queryInsertSNSContent(ieInfo[0], ie.getTalk(), 0, 0, 0, m_serverStub.getCMInfo());
+                    }
+
+                }
+            default:
+                return;
+        }
+    }
+
+
+}
