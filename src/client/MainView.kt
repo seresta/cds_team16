@@ -141,7 +141,7 @@ class FriendView : View() {
                 contextmenu {
                     item("친구 삭제").action {
                         selectedItem?.apply {
-                            clientStub.removeFriend(this)
+                            clientController.tryDeleteFriend(this)
                         }
                     }
                     item("일반 채팅 하기").action {
@@ -153,19 +153,20 @@ class FriendView : View() {
                                 roomId = clientController.getRoomId(selectedItem!!, false)
                             }
 
-                            clientController.showChatRoomView(roomId)
+                            clientController.showChatRoomView(roomId, false)
                         }
 
                     }
                     item("비밀 채팅 하기").action {
                         selectedItem?.apply {
-                            val roomId = clientController.getRoomId(selectedItem!!, true)
+                            var roomId = clientController.getRoomId(selectedItem!!, true)
                             val filtered = chatRoomMap.map { it.key }.filter { it == roomId }
                             if (filtered.isEmpty()) {
                                 clientController.createRoom(selectedItem!!, true)
+                                roomId = clientController.getRoomId(selectedItem!!, true)
                             }
 
-                            clientController.showChatRoomView(roomId)
+                            clientController.showChatRoomView(roomId, true)
                         }
                     }
                 }
@@ -205,7 +206,8 @@ class ChatView : View() {
             contextmenu {
                 item("채팅방 입장").action {
                     selectedItem?.apply {
-                        clientController.showChatRoomView(this.substringAfter(':').toInt())
+                        val isSecret = this.contains("비밀".toRegex())
+                        clientController.showChatRoomView(this.substringAfter(':').toInt(), isSecret)
                     }
                 }
             }

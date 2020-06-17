@@ -40,8 +40,11 @@ class ClientController : Controller(), CMAppEventHandler {
         loginView.replaceWith(mainView)
     }
 
-    fun showChatRoomView(roomId: Int) {
+    fun showChatRoomView(roomId: Int, isSecret: Boolean) {
         val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomId))
+        chatRoomView.chatList.clear()
+        if (!isSecret)
+            requestMsgList(roomId)
         mainView.replaceWith(chatRoomView)
     }
 
@@ -63,6 +66,7 @@ class ClientController : Controller(), CMAppEventHandler {
             if (replyEvent == null) {
                 System.err.println("The reply event is null!")
             } else {
+                mainView.chatList.remove(mainView.chatList.find { it.contains(roomID.toString()) })
                 println("방 나가기 정상 처리")
             }
         }
@@ -116,6 +120,9 @@ class ClientController : Controller(), CMAppEventHandler {
     }
 
     fun getRoomList() {
+        val chatView = find<ChatView>()
+        chatView.chatList.clear()
+
         val interInfo: CMInteractionInfo = clientStub.cmInfo.interactionInfo
         val myself = interInfo.myself
         val strSend = "requestRoomList:"
@@ -143,10 +150,8 @@ class ClientController : Controller(), CMAppEventHandler {
                     val roomId = roomInfo[0]
                     if (roomId.isNotEmpty()) {
                         chatRoomMap[roomId.toInt()] = arrayListOf<String>()
-                        requestMsgList(roomId.toInt())
 
                         runLater {
-                            chatView.chatList.clear()
                             chatView.chatList.add("${if (roomInfo[2] == "false") "[일반]" else "[비밀]"}${roomInfo[1]}:${roomInfo[0]}")
                         }
                     }
@@ -181,11 +186,11 @@ class ClientController : Controller(), CMAppEventHandler {
                 return roomID
             } else if (dueInfo[0] == "0") {
                 println("There is no valid room!!")
-                return 99
+                return -1
             }
         }
 
-        return 100
+        return -1
     }
 
     fun requestMsgList(roomID: Int) {
@@ -272,7 +277,10 @@ class ClientController : Controller(), CMAppEventHandler {
                 val roomID = seInfo[0].toInt()
                 chatRoomMap[roomID] = arrayListOf(seInfo[1] + ":" + seInfo[2])
                 val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomID))
-                chatRoomView.chatList.add(seInfo[1] + ":" + seInfo[2])
+                runLater {
+                    chatRoomView.chatList.add(seInfo[1] + ":" + seInfo[2])
+                }
+
             }
             CMSNSEvent.CONTENT_DOWNLOAD_END -> {
                 println("download end")
