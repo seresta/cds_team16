@@ -278,7 +278,7 @@ class ClientController : Controller(), CMAppEventHandler {
                 chatRoomMap[roomID] = arrayListOf(seInfo[1] + ":" + seInfo[2])
                 val chatRoomView = find<ChatRoomView>(mapOf(ChatRoomView::roomId to roomID))
                 runLater {
-                    chatRoomView.chatList.add(seInfo[1] + ":" + seInfo[2])
+                    chatRoomView.chatList.add(0, seInfo[1] + ":" + seInfo[2])
                 }
 
             }
